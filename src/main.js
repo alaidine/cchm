@@ -47,8 +47,6 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_MEASUREMENT_ID,
 };
 
-console.log(firebaseConfig);
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
