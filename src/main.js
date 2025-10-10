@@ -18,13 +18,21 @@ document.querySelector("#app").innerHTML = `
       </fieldset>
     </div>
     <div>
-      <h2>Start a screenshare</h2>
-      <button id="startButton">Start screenshare</button>
+      <h2>Start Receiving</h2>
+      <p>Create a receiver to accept a screenshare</p>
+      <input id="receiverNameInput" placeholder="Enter receiver name" />
+      <button id="startButton">Start Receiver</button>
+      <div id="receiverToken" style="display:none">
+        <p>Share this token with the sender:</p>
+        <input id="tokenDisplay" readonly />
+      </div>
       <div id="join">
-        <h2>Join a Call</h2>
-        <p>Answer the call from a different browser window or device</p>
-        <input id="joinInput" />
-        <button id="joinButton">Join screenshare</button>
+        <h2>Send Your Screenshare</h2>
+        <p>Select a receiver and share your screen</p>
+        <select name="receivers" id="receiver-select">
+          <option value="">Loading receivers...</option>
+        </select>
+        <button id="joinButton">Send Screenshare</button>
       </div>
       <h2>Hangup</h2>
       <button id="hangupButton" disabled>Hangup</button>
@@ -33,7 +41,6 @@ document.querySelector("#app").innerHTML = `
   </div>
 `;
 
-// Import the functions you need from the SDKs you need
 import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 
@@ -50,11 +57,16 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 const preferredDisplaySurface = document.getElementById("displaySurface");
 const startButton = document.getElementById("startButton");
 const joinButton = document.getElementById("joinButton");
-const joinInput = document.getElementById("joinInput");
+const receiverSelect = document.getElementById("receiver-select");
+const receiverNameInput = document.getElementById("receiverNameInput");
 const hangupButton = document.getElementById("hangupButton");
+const tokenDisplay = document.getElementById("tokenDisplay");
+const receiverTokenDiv = document.getElementById("receiverToken");
 
 const servers = {
   iceServers: [
@@ -67,8 +79,137 @@ const servers = {
 
 const pc = new RTCPeerConnection(servers);
 
-async function handleSuccess(stream) {
+// Fetch available receivers from API
+async function fetchReceivers() {
+  try {
+    const response = await fetch(`${API_URL}/receiver`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch receivers");
+    }
+
+    const receivers = await response.json();
+
+    // Populate the select dropdown
+    receiverSelect.innerHTML = '<option value="">Select a receiver</option>';
+    receivers.forEach((receiver) => {
+      const option = document.createElement("option");
+      option.value = receiver.token || receiver.id;
+      option.textContent = receiver.name;
+      receiverSelect.appendChild(option);
+    });
+  } catch (error) {
+    console.error("Error fetching receivers:", error);
+    errorMsg("Failed to load receivers");
+    receiverSelect.innerHTML =
+      '<option value="">Error loading receivers</option>';
+  }
+}
+
+// Post new receiver to API
+async function postReceiver(name, token) {
+  try {
+    const params = new URLSearchParams();
+    params.append("name", name);
+    params.append("token", token);
+
+    const response = await fetch(`${API_URL}/receiver`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create receiver");
+    }
+
+    // Refresh the receivers list
+    await fetchReceivers();
+  } catch (error) {
+    console.error("Error posting receiver:", error);
+    errorMsg("Failed to create receiver");
+  }
+}
+
+// Start button now creates a RECEIVER (answerer) instead of sender
+async function startReceiver() {
+  const receiverName = receiverNameInput.value.trim();
+
+  if (!receiverName) {
+    errorMsg("Please enter a receiver name");
+    return;
+  }
+
   startButton.disabled = true;
+
+  let remoteStream = new MediaStream();
+
+  // Set up to receive tracks from the sender
+  pc.ontrack = (event) => {
+    event.streams[0].getTracks().forEach((track) => {
+      remoteStream.addTrack(track);
+    });
+  };
+
+  const video = document.querySelector("video");
+  video.srcObject = remoteStream;
+
+  // Create a receiver session in Firestore
+  const callDoc = db.collection("calls").doc();
+  const offerCandidates = callDoc.collection("offerCandidates");
+  const answerCandidates = callDoc.collection("answerCandidates");
+
+  // Display the token for the sender to use
+  tokenDisplay.value = callDoc.id;
+  receiverTokenDiv.style.display = "block";
+
+  // Post receiver to API
+  await postReceiver(receiverName, callDoc.id);
+
+  // Collect ICE candidates for the receiver
+  pc.onicecandidate = (event) => {
+    event.candidate && answerCandidates.add(event.candidate.toJSON());
+  };
+
+  // Listen for the sender's offer
+  callDoc.onSnapshot(async (snapshot) => {
+    const data = snapshot.data();
+    if (!pc.currentRemoteDescription && data?.offer) {
+      const offerDescription = new RTCSessionDescription(data.offer);
+      await pc.setRemoteDescription(offerDescription);
+
+      // Create answer
+      const answerDescription = await pc.createAnswer();
+      await pc.setLocalDescription(answerDescription);
+
+      const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+      };
+
+      await callDoc.update({ answer });
+    }
+  });
+
+  // Listen for sender's ICE candidates
+  offerCandidates.onSnapshot((snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type === "added") {
+        const candidate = new RTCIceCandidate(change.doc.data());
+        pc.addIceCandidate(candidate);
+      }
+    });
+  });
+
+  hangupButton.disabled = false;
+}
+
+async function handleSuccess(stream) {
+  joinButton.disabled = true;
   preferredDisplaySurface.disabled = true;
   const video = document.querySelector("video");
   video.srcObject = stream;
@@ -78,15 +219,12 @@ async function handleSuccess(stream) {
     pc.addTrack(track, stream);
   });
 
-  createCall().catch((e) => console.log(e));
-
-  joinButton.disabled = true;
+  sendScreenshare().catch((e) => console.log(e));
 
   // demonstrates how to detect that the user has stopped
   // sharing the screen via the browser UI.
   stream.getVideoTracks()[0].addEventListener("ended", () => {
     errorMsg("The user has ended sharing the screen");
-    startButton.disabled = false;
     joinButton.disabled = false;
     preferredDisplaySurface.disabled = false;
   });
@@ -104,15 +242,20 @@ function errorMsg(msg, error) {
   }
 }
 
-async function createCall() {
-  // Reference Firestore collections for signaling
-  const callDoc = db.collection("calls").doc();
+async function sendScreenshare() {
+  // Join button now SENDS the screenshare (creates offer)
+  const callId = receiverSelect.value;
+
+  if (!callId) {
+    errorMsg("Please select a receiver");
+    return;
+  }
+
+  const callDoc = db.collection("calls").doc(callId);
   const offerCandidates = callDoc.collection("offerCandidates");
   const answerCandidates = callDoc.collection("answerCandidates");
 
-  joinInput.value = callDoc.id;
-
-  // Get candidates for caller, save to db
+  // Get candidates for sender, save to db
   pc.onicecandidate = (event) => {
     event.candidate && offerCandidates.add(event.candidate.toJSON());
   };
@@ -128,7 +271,7 @@ async function createCall() {
 
   await callDoc.set({ offer });
 
-  // Listen for remote answer
+  // Listen for receiver's answer
   callDoc.onSnapshot((snapshot) => {
     const data = snapshot.data();
     if (!pc.currentRemoteDescription && data?.answer) {
@@ -137,7 +280,7 @@ async function createCall() {
     }
   });
 
-  // Listen for remote ICE candidates
+  // Listen for receiver's ICE candidates
   answerCandidates.onSnapshot((snapshot) => {
     snapshot.docChanges().forEach((change) => {
       if (change.type === "added") {
@@ -151,6 +294,10 @@ async function createCall() {
 }
 
 startButton.addEventListener("click", () => {
+  startReceiver();
+});
+
+joinButton.addEventListener("click", async () => {
   const options = { audio: true, video: true };
   const displaySurface =
     preferredDisplaySurface.options[preferredDisplaySurface.selectedIndex]
@@ -164,63 +311,13 @@ startButton.addEventListener("click", () => {
     .then(handleSuccess, handleError);
 });
 
-joinButton.addEventListener("click", async () => {
-  console.log("clicked the join button");
-  startButton.disabled = true;
-
-  let remoteStream = new MediaStream();
-
-  // Pull tracks from remote stream, add to video stream
-  pc.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => {
-      remoteStream.addTrack(track);
-    });
-  };
-
-  const video = document.querySelector("video");
-  video.srcObject = remoteStream;
-
-  const callId = joinInput.value;
-  const callDoc = db.collection("calls").doc(callId);
-  const offerCandidates = callDoc.collection("offerCandidates");
-  const answerCandidates = callDoc.collection("answerCandidates");
-
-  pc.onicecandidate = (event) => {
-    event.candidate && answerCandidates.add(event.candidate.toJSON());
-  };
-
-  // Fetch data, then set the offer & answer
-
-  const callData = (await callDoc.get()).data();
-
-  const offerDescription = callData.offer;
-  await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
-
-  const answerDescription = await pc.createAnswer();
-  await pc.setLocalDescription(answerDescription);
-
-  const answer = {
-    type: answerDescription.type,
-    sdp: answerDescription.sdp,
-  };
-
-  await callDoc.update({ answer });
-
-  // Listen to offer candidates
-
-  offerCandidates.onSnapshot((snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      console.log(change);
-      if (change.type === "added") {
-        let data = change.doc.data();
-        pc.addIceCandidate(new RTCIceCandidate(data));
-      }
-    });
-  });
-});
-
 if (navigator.mediaDevices && "getDisplayMedia" in navigator.mediaDevices) {
   startButton.disabled = false;
+  joinButton.disabled = false;
 } else {
   errorMsg("getDisplayMedia is not supported");
+  joinButton.disabled = true;
 }
+
+// Fetch receivers on page load
+fetchReceivers();
