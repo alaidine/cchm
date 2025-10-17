@@ -45,19 +45,19 @@ import firebase from "firebase/compat/app";
 import "firebase/compat/firestore";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_API_KEY,
-  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_APP_ID,
-  measurementId: import.meta.env.VITE_MEASUREMENT_ID,
+  apiKey: "AIzaSyBJHMgWYQ6PnU3Smoi5E4N2neMQ9av9C8Y",
+  authDomain: "chromecasthomemade.firebaseapp.com",
+  projectId: "chromecasthomemade",
+  storageBucket: "chromecasthomemade.firebasestorage.app",
+  messagingSenderId: "189639619017",
+  appId: "1:189639619017:web:4e9b2ad70a6b5cdf74f818",
+  measurementId: "G-CRFW1ZTE07",
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "https://cchm-server.onrender.com";
 
 const preferredDisplaySurface = document.getElementById("displaySurface");
 const startButton = document.getElementById("startButton");
