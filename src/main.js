@@ -2,7 +2,22 @@
 
 import "./style.css";
 
-document.querySelector("#app").innerHTML = `
+const API_URL = "https://cchm-server.onrender.com";
+
+import firebase from "firebase/compat/app";
+import "firebase/compat/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBJHMgWYQ6PnU3Smoi5E4N2neMQ9av9C8Y",
+  authDomain: "chromecasthomemade.firebaseapp.com",
+  projectId: "chromecasthomemade",
+  storageBucket: "chromecasthomemade.firebasestorage.app",
+  messagingSenderId: "189639619017",
+  appId: "1:189639619017:web:4e9b2ad70a6b5cdf74f818",
+  measurementId: "G-CRFW1ZTE07",
+};
+
+let cchm_app = `
   <div id="container">
     <h1>ChromeCast Home-Made</h1>
     <div>
@@ -41,25 +56,93 @@ document.querySelector("#app").innerHTML = `
   </div>
 `;
 
-import firebase from "firebase/compat/app";
-import "firebase/compat/firestore";
+let homeContainer = `
+  <div id="homeContainer">
+    <button id="receive">Receiver</button>
+    <button id="send">Sender</button>
+    <div id="errorMsg"></div>
+  </div>
+`;
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBJHMgWYQ6PnU3Smoi5E4N2neMQ9av9C8Y",
-  authDomain: "chromecasthomemade.firebaseapp.com",
-  projectId: "chromecasthomemade",
-  storageBucket: "chromecasthomemade.firebasestorage.app",
-  messagingSenderId: "189639619017",
-  appId: "1:189639619017:web:4e9b2ad70a6b5cdf74f818",
-  measurementId: "G-CRFW1ZTE07",
-};
+document.querySelector("#app").innerHTML = homeContainer;
+
+const receive = document.getElementById("receive");
+const send = document.getElementById("send");
+
+let receiver = `
+  <div id="receiverContainer">
+    <div id="receiverName"></div>
+    <video id="video" autoplay playsinline muted></video>
+    <div id="errorMsg"></div>
+  </div>
+`;
+
+let sender = `
+  <div id="senderContainer">
+    <fieldset id="options" style="display:none">
+      <legend>Advanced options</legend>
+      <select id="displaySurface">
+        <option value="default" selected>Show default sharing options</option>
+        <option value="browser">Prefer to share a browser tab</option>
+        <option value="window">Prefer to share a window</option>
+        <option value="monitor">Prefer to share an entire screen</option>
+      </select>
+    </fieldset>
+    <video id="senderVideo" autoplay playsinline muted></video>
+    <input id="receiveInput" placeholder="Enter receiver name" />
+    <button id="sendButton">Send Screenshare</button>
+    <div id="errorMsg"></div>
+  </div>
+`;
+
+receive.addEventListener("click", async () => {
+  document.querySelector("#app").innerHTML = receiver;
+  startReceiver();
+});
+
+send.addEventListener("click", () => {
+  document.querySelector("#app").innerHTML = sender;
+
+  document.getElementById("sendButton").addEventListener("click", () => {
+    const preferredDisplaySurface = document.getElementById("displaySurface");
+
+    async function handleSuccess(stream) {
+      preferredDisplaySurface.disabled = true;
+      const video = document.querySelector("video");
+      video.srcObject = stream;
+
+      // Push tracks from local stream to peer connection
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+
+      sendScreenshare().catch((e) => console.log(e));
+
+      // demonstrates how to detect that the user has stopped
+      // sharing the screen via the browser UI.
+      stream.getVideoTracks()[0].addEventListener("ended", () => {
+        errorMsg("The user has ended sharing the screen");
+        preferredDisplaySurface.disabled = false;
+      });
+    }
+
+    const options = { audio: true, video: true };
+    const displaySurface =
+      preferredDisplaySurface.options[preferredDisplaySurface.selectedIndex]
+        .value;
+    if (displaySurface !== "default") {
+      options.video = { displaySurface };
+    }
+
+    navigator.mediaDevices
+      .getDisplayMedia(options)
+      .then(handleSuccess, handleError);
+  });
+});
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const API_URL = "https://cchm-server.onrender.com";
-
-const preferredDisplaySurface = document.getElementById("displaySurface");
 const startButton = document.getElementById("startButton");
 const joinButton = document.getElementById("joinButton");
 const receiverSelect = document.getElementById("receiver-select");
@@ -109,10 +192,9 @@ async function fetchReceivers() {
 }
 
 // Post new receiver to API
-async function postReceiver(name, token) {
+async function postReceiver(token) {
   try {
     const params = new URLSearchParams();
-    params.append("name", name);
     params.append("token", token);
 
     const response = await fetch(`${API_URL}/receiver`, {
@@ -127,8 +209,10 @@ async function postReceiver(name, token) {
       throw new Error("Failed to create receiver");
     }
 
-    // Refresh the receivers list
-    await fetchReceivers();
+    let name = await response.text();
+
+    document.getElementById("receiverName").innerHTML = name;
+    console.log(name);
   } catch (error) {
     console.error("Error posting receiver:", error);
     errorMsg("Failed to create receiver");
@@ -137,15 +221,6 @@ async function postReceiver(name, token) {
 
 // Start button now creates a RECEIVER (answerer) instead of sender
 async function startReceiver() {
-  const receiverName = receiverNameInput.value.trim();
-
-  if (!receiverName) {
-    errorMsg("Please enter a receiver name");
-    return;
-  }
-
-  startButton.disabled = true;
-
   let remoteStream = new MediaStream();
 
   // Set up to receive tracks from the sender
@@ -163,12 +238,8 @@ async function startReceiver() {
   const offerCandidates = callDoc.collection("offerCandidates");
   const answerCandidates = callDoc.collection("answerCandidates");
 
-  // Display the token for the sender to use
-  tokenDisplay.value = callDoc.id;
-  receiverTokenDiv.style.display = "block";
-
   // Post receiver to API
-  await postReceiver(receiverName, callDoc.id);
+  await postReceiver(callDoc.id);
 
   // Collect ICE candidates for the receiver
   pc.onicecandidate = (event) => {
@@ -204,30 +275,6 @@ async function startReceiver() {
       }
     });
   });
-
-  hangupButton.disabled = false;
-}
-
-async function handleSuccess(stream) {
-  joinButton.disabled = true;
-  preferredDisplaySurface.disabled = true;
-  const video = document.querySelector("video");
-  video.srcObject = stream;
-
-  // Push tracks from local stream to peer connection
-  stream.getTracks().forEach((track) => {
-    pc.addTrack(track, stream);
-  });
-
-  sendScreenshare().catch((e) => console.log(e));
-
-  // demonstrates how to detect that the user has stopped
-  // sharing the screen via the browser UI.
-  stream.getVideoTracks()[0].addEventListener("ended", () => {
-    errorMsg("The user has ended sharing the screen");
-    joinButton.disabled = false;
-    preferredDisplaySurface.disabled = false;
-  });
 }
 
 function handleError(error) {
@@ -243,12 +290,20 @@ function errorMsg(msg, error) {
 }
 
 async function sendScreenshare() {
-  // Join button now SENDS the screenshare (creates offer)
-  const callId = receiverSelect.value;
+  const input = document.getElementById("receiveInput").value;
 
-  if (!callId) {
-    errorMsg("Please select a receiver");
-    return;
+  let callId;
+
+  try {
+    const response = await fetch(`${API_URL}/receiver/${input}`);
+    const body = await response.text();
+    const jsonBody = JSON.parse(body);
+    console.log(jsonBody);
+    console.log(jsonBody[0].token);
+
+    callId = jsonBody[0].token;
+  } catch (error) {
+    console.log(error);
   }
 
   const callDoc = db.collection("calls").doc(callId);
@@ -289,35 +344,30 @@ async function sendScreenshare() {
       }
     });
   });
-
-  hangupButton.disabled = false;
 }
 
-startButton.addEventListener("click", () => {
-  startReceiver();
-});
+// startButton.addEventListener("click", () => {
+//   startReceiver();
+// });
 
-joinButton.addEventListener("click", async () => {
-  const options = { audio: true, video: true };
-  const displaySurface =
-    preferredDisplaySurface.options[preferredDisplaySurface.selectedIndex]
-      .value;
-  if (displaySurface !== "default") {
-    options.video = { displaySurface };
-  }
+// joinButton.addEventListener("click", async () => {
+//   const options = { audio: true, video: true };
+//   const displaySurface =
+//     preferredDisplaySurface.options[preferredDisplaySurface.selectedIndex]
+//       .value;
+//   if (displaySurface !== "default") {
+//     options.video = { displaySurface };
+//   }
 
-  navigator.mediaDevices
-    .getDisplayMedia(options)
-    .then(handleSuccess, handleError);
-});
+//   navigator.mediaDevices
+//     .getDisplayMedia(options)
+//     .then(handleSuccess, handleError);
+// });
 
-if (navigator.mediaDevices && "getDisplayMedia" in navigator.mediaDevices) {
-  startButton.disabled = false;
-  joinButton.disabled = false;
-} else {
-  errorMsg("getDisplayMedia is not supported");
-  joinButton.disabled = true;
-}
-
-// Fetch receivers on page load
-fetchReceivers();
+// if (navigator.mediaDevices && "getDisplayMedia" in navigator.mediaDevices) {
+//   startButton.disabled = false;
+//   joinButton.disabled = false;
+// } else {
+//   errorMsg("getDisplayMedia is not supported");
+//   joinButton.disabled = true;
+// }

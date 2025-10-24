@@ -1,159 +1,5 @@
-/* ---- Global Reset ---- */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-/* ---- Body ---- */
 body {
-  font-family: "Inter", "Roboto", sans-serif;
-  background: radial-gradient(circle at 30% 20%, #1a1a1a, #0c0c0c 80%);
-  color: #f5f5f5;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-/* ---- Container ---- */
-#container {
-  background: rgba(30, 30, 30, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 2rem;
-  width: 100%;
-  max-width: 700px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-}
-
-/* ---- Headings ---- */
-h1 {
-  font-size: 1.8rem;
-  text-align: center;
-  margin-bottom: 2rem;
-  color: #ffffff;
-  letter-spacing: 0.05em;
-}
-
-h2 {
-  font-size: 1.3rem;
-  margin-bottom: 0.5rem;
-  color: #e0e0e0;
-}
-
-p {
-  color: #a0a0a0;
-  margin-bottom: 0.8rem;
-}
-
-/* ---- Inputs & Selects ---- */
-input,
-select {
-  width: 100%;
-  padding: 0.7rem 1rem;
-  margin-bottom: 1rem;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 8px;
-  color: #fff;
-  transition: all 0.2s ease-in-out;
-}
-
-input:focus,
-select:focus {
-  border-color: #00bcd4;
-  outline: none;
-  box-shadow: 0 0 6px rgba(0, 188, 212, 0.5);
-}
-
-/* ---- Buttons ---- */
-button {
-  background: linear-gradient(135deg, #00bcd4, #0097a7);
-  color: white;
-  border: none;
-  padding: 0.8rem 1.4rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.25s ease;
-}
-
-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #00acc1, #007c91);
-  transform: translateY(-1px);
-}
-
-button:disabled {
-  background: #444;
-  cursor: not-allowed;
-}
-
-/* ---- Video ---- */
-#video {
-  background: #111;
-  border-radius: 12px;
-  width: 100%;
-  height: auto;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-/* ---- Fieldset ---- */
-fieldset {
-  border: 1px solid #333;
-  border-radius: 10px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  color: #ccc;
-}
-
-legend {
-  color: #00bcd4;
-  font-size: 0.9rem;
-  padding: 0 0.4rem;
-}
-
-/* ---- Receiver Token ---- */
-#receiverToken {
-  background: rgba(0, 188, 212, 0.08);
-  border-left: 3px solid #00bcd4;
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 8px;
-}
-
-/* ---- Error messages ---- */
-#errorMsg {
-  color: #ff5252;
-  margin-top: 1rem;
-  font-size: 0.95rem;
-  font-weight: 400;
-}
-
-/* ---- Layout spacing ---- */
-#join,
-#receiverToken,
-#options {
-  margin-top: 1.5rem;
-}
-
-h2 + p {
-  margin-bottom: 1rem;
-}
-
-/* #video {
-  background: #222;
-  margin: 0 0 20px 0;
-  --width: 100%;
-  width: var(--width);
-  height: calc(var(--width) * 0.75);
-}
-
-body {
-  font-family: 'Roboto', sans-serif;
+  font-family: "Roboto", sans-serif;
   font-weight: 300;
   margin: 0;
   padding: 1em;
@@ -164,4 +10,33 @@ body {
   margin: 0 auto 0 auto;
   max-width: 60em;
   padding: 1em 1.5em 1.3em 1.5em;
-} */
+}
+
+#home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#video {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  background-color: black;
+  top: 0;
+  left: 0;
+}
+
+#senderVideo {
+  height: 10%;
+  width: 10%;
+  background-color: black;
+}
+
+#receiverName {
+  background-color: antiquewhite;
+  top: 0;
+  left: 0;
+  position: absolute;
+  z-index: 10;
+}
