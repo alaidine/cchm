@@ -52,6 +52,7 @@ body {
   position: absolute;
   z-index: 10;
   color: white;
+  background-color: black;
 }
 
 #homeContainer {
