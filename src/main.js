@@ -60,6 +60,7 @@ let homeContainer = `
   <div id="homeContainer">
     <button id="receive">Receiver</button>
     <button id="send">Sender</button>
+    <button id="howItWorks">How it works</button>
     <div id="errorMsg"></div>
   </div>
 `;
@@ -371,3 +372,33 @@ async function sendScreenshare() {
 //   errorMsg("getDisplayMedia is not supported");
 //   joinButton.disabled = true;
 // }
+
+document.addEventListener("click", (e) => {
+  if (e.target.id == "howItWorks") showHowItWorks();
+});
+
+function showHowItWorks() {
+  const overlay = document.createElement("div");
+  overlay.classList.add("modal-overlay");
+
+  overlay.innerHTML = `
+    <div id="modal">
+      <h2>How it works</h2>
+      <p>
+        ChromeCast Home-Made lets you share your screen easily between devices.
+      </p>
+      <ul style="margin-left: 1.2rem; line-height:1.6;">
+        <li><b>Receiver</b>: Create a receiver to get a share token.</li>
+        <li><b>Sender</b>: Enter that token and start your screen share.</li>
+        <li>Everything runs peer-to-peer using WebRTC.</li>
+      </ul>
+      <button id="closeModal">Got it!</button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById("closeModal").addEventListener("click", () => {
+    overlay.remove();
+  });
+}
